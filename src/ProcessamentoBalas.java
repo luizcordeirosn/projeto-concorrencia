@@ -1,32 +1,26 @@
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
 public class ProcessamentoBalas extends Thread {
-	
-	Cena scene;
-	List<Balas> bullets;
-	
-	public ProcessamentoBalas(Cena scene, List<Balas> b) {
-		this.bullets = b;
-		this.scene = scene;
+
+	Cena cena;
+	List<Balas> balas;
+
+	public ProcessamentoBalas(Cena cena, List<Balas> balas) {
+		this.balas = balas;
+		this.cena = cena;
 	}
-	
-	
+
 	@Override
 	public void run() {
-		
-		for (Balas b : bullets) {
-			
-			Iterator<GameObject> go = scene.iterate();
-			while (go.hasNext()) {
-				
-				GameObject g = go.next();
-				if (g instanceof Colisao) {
-					if (b.checkCollision((Colisao) g)) 
-						b.setAlive(false);
+		for (Balas bala : balas) {
+			Iterator<ObjetoDoJogo> objeto = cena.iterate();
+			while (objeto.hasNext()) {
+				ObjetoDoJogo g = objeto.next();
+				if (g instanceof Colisao && bala.verificaColisao((Colisao) g)) {
+					bala.setEstaVivo(false);
 				}
-				
+
 			}
 		}
 	}

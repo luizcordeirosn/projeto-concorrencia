@@ -13,6 +13,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 
 import javax.swing.JFrame;
@@ -20,17 +22,19 @@ import javax.swing.JFrame;
 public class Jogo extends JFrame implements Runnable {
 	
 	// TODO: implements the frame interval
-	private static final int INTERVAL = 100;
-	private static final int NUM_BULLETS = 1800;
-	private static final int NUM_OBJECTS = 500;
-	private static final int NUM_THREADS = 1;
-	private static final int INTERVAL_FOR_SHOOTING = 10;
-	private static final int QUAD_SIZE = 15;
+	private static final int INTERVALO = 100;
+	private static final int NUMERO_DE_BALAS = 1800;
+	private static final int NUMERO_DE_OBJETOS = 500;
+	private static final int NUMERO_DE_THREADS = 2;
+	private static final int INTERVALO_POR_DISPARO = 10;
+	private static final int TAMANHO_RETANGULO = 15;
 	
+	ExecutorService executor = Executors.newFixedThreadPool(NUMERO_DE_THREADS);
 	Thread [] processingBulletCollision;
 	FileWriter file;
 	
-	private volatile boolean isRunning;
+	private volatile boolean executando;
+	
 	Thread gameLoop = null;
 	Cena scene = new Cena();
 	List<Balas> bullets = new ArrayList<Balas>();
@@ -45,7 +49,7 @@ public class Jogo extends JFrame implements Runnable {
 			
 		// Thread used for computing collision against elements in the scene
 		//Utilizando apenas uma thread para simular um codigo sequencial
-		processingBulletCollision = new Thread[NUM_THREADS];
+		processingBulletCollision = new Thread[NUMERO_DE_THREADS];
 	}
 	
 	private void createScene() {
@@ -53,13 +57,13 @@ public class Jogo extends JFrame implements Runnable {
 		scene.clear();
 		bullets.clear();
 		
-		for (int i = 0; i < NUM_OBJECTS; i++) {
+		for (int i = 0; i < NUMERO_DE_OBJETOS; i++) {
 			
-			int posX = (int)(Math.random() * (double)getWidth() - QUAD_SIZE);
-			int posY = (int)(Math.random() * (double)getHeight() - QUAD_SIZE);
+			int posX = (int)(Math.random() * (double)getWidth() - TAMANHO_RETANGULO);
+			int posY = (int)(Math.random() * (double)getHeight() - TAMANHO_RETANGULO);
 			
-			Quad q = new Quad(QUAD_SIZE, QUAD_SIZE);
-			q.setPos(posX, posY);
+			Retangulo q = new Retangulo(TAMANHO_RETANGULO, TAMANHO_RETANGULO);
+			q.setPosicao(posX, posY);
 			scene.add(q);
 		}
 		
@@ -75,7 +79,7 @@ public class Jogo extends JFrame implements Runnable {
 		// Create the scene
 		createScene();
 		
-		isRunning = true;
+		executando = true;
 		gameLoop = new Thread(this);
 		gameLoop.start();
 	}
@@ -84,7 +88,7 @@ public class Jogo extends JFrame implements Runnable {
 	 * This method stops the game and ends the program
 	 */
 	public void stopGame() {
-		isRunning = false;
+		executando = false;
 		try {
 			gameLoop.join();
 		} catch (InterruptedException e) {
@@ -106,7 +110,7 @@ public class Jogo extends JFrame implements Runnable {
 	@Override
 	public void run() {
 		
-		while (isRunning) {
+		while (executando) {
 			
 			update();
 			
@@ -123,9 +127,8 @@ public class Jogo extends JFrame implements Runnable {
 			
 			
 			try {
-				Thread.sleep(INTERVAL);
+				Thread.sleep(INTERVALO);
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 			
@@ -133,17 +136,16 @@ public class Jogo extends JFrame implements Runnable {
 	}
 	
 	private void draw(Graphics2D g2) {	
-		scene.draw(g2);
+		scene.desenhe(g2);
 		
 		try {
 			sem.acquire();
 		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		
 		for (Balas b : bullets) {
-			b.render(g2);
+			b.renderize(g2);
 		}
 		
 		sem.release();
@@ -156,11 +158,10 @@ public class Jogo extends JFrame implements Runnable {
 		try {
 			sem.acquire();
 		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		
-		int steps = NUM_BULLETS / 360;
+		int steps = NUMERO_DE_BALAS / 360;
 		
 		for (int i = 0; i < steps; i++) {
 			
@@ -170,9 +171,9 @@ public class Jogo extends JFrame implements Runnable {
 				double dY = + Math.sin((double) j);
 				
 				Balas b = new Balas();
-				b.setPos((getWidth() / 2) + (int)(dX * (15.0 * (i + 1))), 
+				b.setPosicao((getWidth() / 2) + (int)(dX * (15.0 * (i + 1))), 
 						(getHeight() / 2) + (int)(dY * (15.0 * (i + 1))));
-				b.setDirection(new Vector((float)dX, (float)dY));
+				b.setDirection(new Vetor((float)dX, (float)dY));
 				
 				bullets.add(b);
 			}
@@ -185,40 +186,39 @@ public class Jogo extends JFrame implements Runnable {
 		try {
 			sem.acquire();
 		} catch (InterruptedException e1) {
-			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
 		
 		for (Balas b : bullets) {
-			b.update();
+			b.atualiza();
 		}
 
 		//Iniciando a contagem do tempo...
 		long start = System.currentTimeMillis(); 
 
 		//Ativar quando for testar o paralelismo (Mudar NUM_THREADS para 2)
-		//int numElemensThread = bullets.size() / NUM_THREADS;
+		int numElemensThread = bullets.size() / NUMERO_DE_THREADS;
 		
-		for (int i = 0; i < NUM_THREADS; i++) {
+		for (int i = 0; i < NUMERO_DE_THREADS; i++) {
 
 			//Ativar quando for testar o sequencial
-			processingBulletCollision[i] = 
-					new ProcessamentoBalas(scene, 
-							bullets.subList(0, bullets.size()));
-
-			processingBulletCollision[i].start();
+//			processingBulletCollision[i] = 
+//					new ProcessamentoBalas(scene, 
+//							bullets.subList(0, bullets.size()));
+//
+//			processingBulletCollision[i].start();
 
 
 			//Ativar quando for testar o paralelismo
 			
-			/*int offsetInic = numElemensThread * i;
+			int offsetInic = numElemensThread * i;
 			processingBulletCollision[i] = 
 					new ProcessamentoBalas(scene, 
 							bullets.subList(offsetInic, offsetInic + numElemensThread));
-			processingBulletCollision[i].start();*/
+			processingBulletCollision[i].start();
 		}
 		
-		for (int i = 0; i < NUM_THREADS; i++) {
+		for (int i = 0; i < NUMERO_DE_THREADS; i++) {
 			try {
 				processingBulletCollision[i].join();
 			} catch (InterruptedException e) {
@@ -319,7 +319,7 @@ public class Jogo extends JFrame implements Runnable {
 				if (evt.getKeyCode() == KeyEvent.VK_SPACE) {
 					if (currentIntervalForShooting <= 0) {
 						addBullets();
-						currentIntervalForShooting = INTERVAL_FOR_SHOOTING;
+						currentIntervalForShooting = INTERVALO_POR_DISPARO;
 					}
 				}
 				

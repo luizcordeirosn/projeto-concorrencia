@@ -5,25 +5,22 @@ import java.util.List;
 
 public class Cena {
 
-	List<GameObject> go = new ArrayList<GameObject>();
+	List<ObjetoDoJogo> objeto = new ArrayList<>();
 	
-	public void add(GameObject g) {
-		this.go.add(g);
+	public void add(ObjetoDoJogo outroObjeto) {
+		this.objeto.add(outroObjeto);
 	}
 	
-	public Iterator<GameObject> iterate(){ return go.iterator(); }
+	public Iterator<ObjetoDoJogo> iterate(){ return objeto.iterator();}
 	
-	public void draw(Graphics2D g2) {
-		
-		for (GameObject g : go) {
-			if (g instanceof Renderable) {
-				((Renderable) g).render(g2);
-			}
-		}
+	public void desenhe(Graphics2D g2) {
+		objeto.stream().
+		filter(objeto -> objeto instanceof Renderizavel).
+		forEach(objeto -> ((Renderizavel) objeto).renderize(g2));
 	}
 	
 	public void clear() {
-		go.clear();
+		objeto.clear();
 	}
 	
 }
