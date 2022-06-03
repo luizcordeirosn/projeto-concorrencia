@@ -4,10 +4,10 @@ import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.geom.Ellipse2D;
 
-public class Balas extends ObjetoDoJogo implements Colisao, Renderizavel {
+public class Bala extends ObjetoDoJogo implements Colisao, Renderizavel {
 
 	public static final int RAIO = 2;
-	public static final float VELOCIDADE = 15;
+	public static final float VELOCIDADE = 10;
 	Vetor direcao = new Vetor();
 	boolean estaVivo = false;
 

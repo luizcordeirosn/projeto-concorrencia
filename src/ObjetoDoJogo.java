@@ -4,7 +4,7 @@ public abstract class ObjetoDoJogo  {
 	protected int posX, posY;
 	
 	public boolean foraDaTela() {
-		return false;
+		return posX >= Jogo.LARGURA_TELA || posY >= Jogo.ALTURA_TELA;
 	}
 	
 	public void setPosicao(int x, int y) {

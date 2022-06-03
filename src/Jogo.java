@@ -2,118 +2,91 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
-import java.awt.Shape;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
-import java.awt.geom.Ellipse2D;
 import java.awt.image.BufferStrategy;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 
 import javax.swing.JFrame;
 
 public class Jogo extends JFrame implements Runnable {
-	
-	// TODO: implements the frame interval
+
+	public static final int ALTURA_TELA = 800;
+	public static final int LARGURA_TELA = 800;
+	private static final long serialVersionUID = 4879015074359108598L;
 	private static final int INTERVALO = 100;
-	private static final int NUMERO_DE_BALAS = 1800;
-	private static final int NUMERO_DE_OBJETOS = 500;
-	private static final int NUMERO_DE_THREADS = 2;
+	private static final int NUMERO_DE_BALAS = 3600;
+	private static final int NUMERO_DE_OBJETOS = 1800;
+	private static final int NUMERO_DE_THREADS = 3;
 	private static final int INTERVALO_POR_DISPARO = 10;
 	private static final int TAMANHO_RETANGULO = 15;
-	
-	ExecutorService executor = Executors.newFixedThreadPool(NUMERO_DE_THREADS);
-	Thread [] processingBulletCollision;
-	FileWriter file;
-	
+
+	Thread[] processingBulletCollision;
+
 	private volatile boolean executando;
-	
+
 	Thread gameLoop = null;
-	Cena scene = new Cena();
-	List<Balas> bullets = new ArrayList<Balas>();
-	int currentIntervalForShooting = 0;
-	
-	Semaphore sem = new Semaphore(1);
-	
+	Cena cena = new Cena();
+	volatile List<Bala> balas = new ArrayList<>();
+	int intervaloParaDisparoAtual = 0;
+
+	Semaphore semafaro = new Semaphore(1);
+
 	BufferStrategy bs;
-	
+
 	public Jogo() {
-		configureWindow();
-			
-		// Thread used for computing collision against elements in the scene
-		//Utilizando apenas uma thread para simular um codigo sequencial
+		configurarJanela();
+		// Thread usada para computar colisão contra os elementos na tela
+		// Utilizando apenas uma thread para simular um codigo sequencial
 		processingBulletCollision = new Thread[NUMERO_DE_THREADS];
 	}
-	
-	private void createScene() {
-		
-		scene.clear();
-		bullets.clear();
-		
+
+	private void criarCena() {
+		// Limpa a tela
+		cena.clear();
+		balas.clear();
+
+		// Adiciona os retangulos na tela
 		for (int i = 0; i < NUMERO_DE_OBJETOS; i++) {
-			
-			int posX = (int)(Math.random() * (double)getWidth() - TAMANHO_RETANGULO);
-			int posY = (int)(Math.random() * (double)getHeight() - TAMANHO_RETANGULO);
-			
-			Retangulo q = new Retangulo(TAMANHO_RETANGULO, TAMANHO_RETANGULO);
-			q.setPosicao(posX, posY);
-			scene.add(q);
+			int posX = (int) (Math.random() * (double) getWidth() - TAMANHO_RETANGULO);
+			int posY = (int) (Math.random() * (double) getHeight() - TAMANHO_RETANGULO);
+			Retangulo retangulo = new Retangulo(TAMANHO_RETANGULO, TAMANHO_RETANGULO);
+			retangulo.setPosicao(posX, posY);
+			cena.add(retangulo);
 		}
-		
 	}
-	
-	/* 
-	 * This method starts the game
-	 */
+
 	public void startGame() {
-		setPreferredSize(new Dimension(800,800));
+		setPreferredSize(new Dimension(LARGURA_TELA, ALTURA_TELA));
 		pack();
-		
-		// Create the scene
-		createScene();
-		
+		criarCena();
 		executando = true;
 		gameLoop = new Thread(this);
 		gameLoop.start();
 	}
-	
-	/* 
-	 * This method stops the game and ends the program
-	 */
-	public void stopGame() {
+
+	public void pararJogo() {
 		executando = false;
 		try {
 			gameLoop.join();
 		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
+
 		setVisible(false);
 		dispose();
-		
-		try {
-			file.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
 	}
-	
+
 	@Override
 	public void run() {
-		
+
 		while (executando) {
-			
 			update();
-			
+
 			Graphics2D g2 = null;
 			try {
 				g2 = (Graphics2D) bs.getDrawGraphics();
@@ -124,216 +97,176 @@ public class Jogo extends JFrame implements Runnable {
 				g2.dispose();
 			}
 			bs.show();
-			
-			
+
 			try {
 				Thread.sleep(INTERVALO);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-			
+
 		}
 	}
-	
-	private void draw(Graphics2D g2) {	
-		scene.desenhe(g2);
-		
+
+	private void draw(Graphics2D g2) {
+		cena.desenhe(g2);
+
 		try {
-			sem.acquire();
+			semafaro.acquire();
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
-		
-		for (Balas b : bullets) {
-			b.renderize(g2);
+
+		for (Bala bala : balas) {
+			bala.renderize(g2);
 		}
-		
-		sem.release();
+
+		semafaro.release();
 	}
-	
-	/* 
-	 * This method is responsible for adding a ring of bullets
-	 */
-	private void addBullets() {
+
+	private void adicionarBalas() {
 		try {
-			sem.acquire();
+			semafaro.acquire();
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
-		
-		int steps = NUMERO_DE_BALAS / 360;
-		
-		for (int i = 0; i < steps; i++) {
-			
+
+		int grau = NUMERO_DE_BALAS / 360;
+		//Para as balas ficarem em um circulo ao serem adicionadas
+		for (int i = 0; i < grau; i++) {
 			for (int j = 0; j < 360; j++) {
-				
+
 				double dX = Math.cos((double) j);
-				double dY = + Math.sin((double) j);
-				
-				Balas b = new Balas();
-				b.setPosicao((getWidth() / 2) + (int)(dX * (15.0 * (i + 1))), 
-						(getHeight() / 2) + (int)(dY * (15.0 * (i + 1))));
-				b.setDirection(new Vetor((float)dX, (float)dY));
-				
-				bullets.add(b);
+				double dY = +Math.sin((double) j);
+
+				Bala bala = new Bala();
+				bala.setPosicao((getWidth() / 2) + (int) (dX * (15.0 * (i + 1))),
+						(getHeight() / 2) + (int) (dY * (15.0 * (i + 1))));
+				bala.setDirection(new Vetor((float) dX, (float) dY));
+
+				balas.add(bala);
 			}
 		}
-		
-		sem.release();
+
+		semafaro.release();
 	}
-	
+
 	private void update() {
+		balas.removeIf(Bala::foraDaTela);
 		try {
-			sem.acquire();
+			// Espera alguma thread ficar livre ou ser interrompida
+			semafaro.acquire();
 		} catch (InterruptedException e1) {
 			e1.printStackTrace();
 		}
-		
-		for (Balas b : bullets) {
-			b.atualiza();
-		}
+		balas.stream().forEach(Bala::atualiza);
+		// Iniciando a contagem do tempo...
+		long start = System.currentTimeMillis();
 
-		//Iniciando a contagem do tempo...
-		long start = System.currentTimeMillis(); 
+		// Ativar quando for testar o paralelismo (Mudar NUM_THREADS para 2)
+		int balasPorThread = balas.size() / NUMERO_DE_THREADS;
 
-		//Ativar quando for testar o paralelismo (Mudar NUM_THREADS para 2)
-		int numElemensThread = bullets.size() / NUMERO_DE_THREADS;
-		
+		// List<Future> processamentos = new ArrayList<>();
 		for (int i = 0; i < NUMERO_DE_THREADS; i++) {
-
-			//Ativar quando for testar o sequencial
-//			processingBulletCollision[i] = 
-//					new ProcessamentoBalas(scene, 
-//							bullets.subList(0, bullets.size()));
-//
-//			processingBulletCollision[i].start();
-
-
-			//Ativar quando for testar o paralelismo
-			
-			int offsetInic = numElemensThread * i;
-			processingBulletCollision[i] = 
-					new ProcessamentoBalas(scene, 
-							bullets.subList(offsetInic, offsetInic + numElemensThread));
+			int offsetInic = balasPorThread * i;
+			List<Bala> balasParaProcessarPorThread = balas.subList(offsetInic, offsetInic + balasPorThread);
+			processingBulletCollision[i] = new ProcessamentoBalas(cena, balasParaProcessarPorThread);
 			processingBulletCollision[i].start();
 		}
-		
+
 		for (int i = 0; i < NUMERO_DE_THREADS; i++) {
 			try {
+				// Espera finalizar a Thread
 				processingBulletCollision[i].join();
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
-		
-		//Finalizando a contagem 
+
+		// Finalizando a contagem
 		long end = System.currentTimeMillis();
 
-		//Tempo de execuÃ§Ã£o
+		// Tempo de execução
 		long time = end - start;
-		
-		try {
-			file.write(bullets.size() + ";" + time + "\n");
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		sem.release();
-		
-		
-		// Control the frequency the player can shoot
-		if (currentIntervalForShooting > 0) {
-			currentIntervalForShooting -= 10;
+
+		//Mostra a quantidade de balas que tem na tela e o tempo que demorou 
+		//para calcular todas elas naquele milionesimo de segundo para cada objeto na tela
+		System.out.println(balas.size() + ";" + time + "\n");
+
+		semafaro.release();
+
+		// Controla a frequencia que o jogador pode disparar
+		if (intervaloParaDisparoAtual > 0) {
+			intervaloParaDisparoAtual -= 10;
 		}
 	}
-	
-	private void configureWindow() {
-		setTitle("Game");
+
+	private void configurarJanela() {
+		setTitle("Projeto Concorrencia");
 		setLayout(new BorderLayout());
-		
+		//Serve para recuperar os eventos da tela
 		addWindowListener(new WindowListener() {
 			@Override
 			public void windowOpened(WindowEvent arg0) {
-				// TODO Auto-generated method stub
-				
 			}
-			
+
 			@Override
 			public void windowIconified(WindowEvent arg0) {
-				// TODO Auto-generated method stub
-				
+
 			}
-			
+
 			@Override
 			public void windowDeiconified(WindowEvent arg0) {
-				// TODO Auto-generated method stub
-				
 			}
-			
+
 			@Override
 			public void windowDeactivated(WindowEvent arg0) {
-				// TODO Auto-generated method stub
-				
 			}
-			
+
 			@Override
 			public void windowClosing(WindowEvent arg0) {
-				stopGame();
+				pararJogo();
 			}
-			
+
 			@Override
 			public void windowClosed(WindowEvent arg0) {
-				// TODO Auto-generated method stub
-				
 			}
-			
+
 			@Override
 			public void windowActivated(WindowEvent arg0) {
-				// TODO Auto-generated method stub
-				
 			}
-		});	
-		
-		
+		});
+
 		setVisible(true);
 		createBufferStrategy(2);
 		bs = getBufferStrategy();
-		
+
+		//Serve para recuperar os eventos do teclado
 		addKeyListener(new KeyListener() {
-			
+
 			@Override
 			public void keyTyped(KeyEvent arg0) {
-				// TODO Auto-generated method stub
-				
 			}
-			
+
 			@Override
 			public void keyReleased(KeyEvent arg0) {
-				// TODO Auto-generated method stub
-				
+
 			}
-			
+
 			@Override
 			public void keyPressed(KeyEvent evt) {
+				// Dispara as balas se apertar espaço
 				if (evt.getKeyCode() == KeyEvent.VK_SPACE) {
-					if (currentIntervalForShooting <= 0) {
-						addBullets();
-						currentIntervalForShooting = INTERVALO_POR_DISPARO;
+					if (intervaloParaDisparoAtual <= 0) {
+						adicionarBalas();
+						intervaloParaDisparoAtual = INTERVALO_POR_DISPARO;
 					}
 				}
-				
+				// Fecha o jogo ao apertar ESC
+				if (evt.getKeyCode() == KeyEvent.VK_ESCAPE) {
+					pararJogo();
+				}
+
 			}
 		});
-		
-		
-		// File for saving time results
-		try {
-			file = new FileWriter("Tempo.txt");
-			file.write("Bullets;Time;\n");
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
 	}
 }
