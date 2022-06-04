@@ -43,7 +43,7 @@ public class Bala extends ObjetoDoJogo implements Colisao, Renderizavel {
 	@Override
 	public void renderize(Graphics2D g2) {
 		Shape forma = new Ellipse2D.Float(posX, posY, RAIO * 2f, RAIO * 2f);
-		g2.setColor(Color.RED);
+		g2.setColor(Color.BLUE);
 		g2.fill(forma);
 	}
 

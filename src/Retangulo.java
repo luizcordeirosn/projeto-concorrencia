@@ -30,7 +30,7 @@ public class Retangulo extends ObjetoDoJogo implements Colisao, Renderizavel {
 	public void renderize(Graphics2D g2) {
 		g2.setColor(cor);
 		g2.fill(forma);
-		cor = Color.GREEN;
+		cor = Color.RED;
 	}
 	
 	@Override
